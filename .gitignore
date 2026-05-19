@@ -1,0 +1,55 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Virtual environments and local tooling
+.venv/
+venv/
+env/
+.python-version
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# Runtime data
+data/
+*.sqlite
+*.sqlite3
+*.db
+*.db-*
+*.jsonl
+
+# Logs and process files
+*.log
+*.pid
+
+# OS and editor noise
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Private agent workspace — not for public repo
+openclaw_workspace/
+
+# Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/.env.local
