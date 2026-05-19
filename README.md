@@ -1,8 +1,8 @@
-# Advanced Clinical Health Tracker
+# Semantic Health Ledger
 
-A local-first health ledger with an AI-powered natural language ingest pipeline. Log compounds, biometrics, lab results, and daily journal entries by typing plain text. A Gemini LLM extracts and routes structured data into a SQLite database, with semantic memory stored in a local Qdrant vector store via Mem0.
+A local-first health ledger with an AI-powered natural language ingest pipeline. Log supplements, biometrics, lab results, and daily journal entries by typing plain text. Gemini extracts and routes structured data into a local SQLite database, with semantic memory stored in a local Qdrant vector store via Mem0 — no cloud data storage.
 
-**Stack:** FastAPI + Pydantic v2 + SQLite + Gemini + Mem0/Qdrant (backend) · Next.js 15 + Recharts + Tailwind v4 (frontend)
+**Stack:** FastAPI · Pydantic v2 · SQLite · Gemini 2.5 Flash · Mem0/Qdrant (backend) — Next.js 15 · Recharts · Tailwind v4 (frontend)
 
 ---
 
@@ -17,132 +17,107 @@ Browser (localhost:3000)
 Next.js rewrites /api/v1/* → localhost:8787 (no CORS config needed)
 
 FastAPI (localhost:8787)
-  ├─ llm_service.py   →  Gemini 2.5 Flash (structured JSON extraction)
+  ├─ llm_service.py   →  Gemini 2.5 Flash (structured JSON extraction, temp=0)
   ├─ memory_layer.py  →  Mem0 + local Qdrant (semantic recall)
   └─ init_storage.py  →  SQLite WAL + 4-table schema
 ```
+
+All data stays on your machine. Nothing is sent to external servers except the Gemini API call for text extraction.
 
 ---
 
 ## Prerequisites
 
-- Python 3.9+ (3.11 recommended)
-- Node.js 18+
-- A Gemini API key — get one at [aistudio.google.com](https://aistudio.google.com)
-- WSL2 (if on Windows) — both servers run inside WSL2; the browser runs on the Windows host at `localhost:3000`
+| Tool            | Version                 | Notes                                                                           |
+| --------------- | ----------------------- | ------------------------------------------------------------------------------- |
+| Python          | 3.9+ (3.11 recommended) |                                                                                 |
+| Node.js         | 18+                     |                                                                                 |
+| Gemini API key  | —                       | Free tier works — get one at [aistudio.google.com](https://aistudio.google.com) |
+| WSL2            | —                       | **Windows only** — see Windows setup below                                      |
 
 ---
 
-## Backend Setup
-
-### 1. Clone and enter the project root
+## Quick Start (Linux / macOS / WSL2)
 
 ```bash
-cd /path/to/OSAssistant
+git clone https://github.com/CEASLEY803/semantic-health-ledger.git
+cd semantic-health-ledger
+bash setup.sh
 ```
 
-### 2. Create a virtual environment and install dependencies
+The script creates a Python virtual environment, installs all dependencies, copies `.env.example` → `.env`, and initialises the SQLite database. It will print:
+
+```text
+>>> Open .env and set GEMINI_API_KEY= before starting the server. <<<
+```
+
+**Add your key to `.env`**, then start both servers:
 
 ```bash
-python -m venv .venv
+# Terminal 1 — backend
 source .venv/bin/activate
-pip install -e .
+uvicorn api:app --host 127.0.0.1 --port 8787 --reload
+
+# Terminal 2 — frontend
+npm --prefix frontend run dev
 ```
 
-### 3. Create the `.env` file
+Open **[http://localhost:3000](http://localhost:3000)**.
+
+---
+
+## Windows Setup (WSL2)
+
+Both servers run inside WSL2. The browser runs on the Windows host and reaches them at `localhost:3000` / `localhost:8787` automatically via WSL2's loopback bridge.
+
+### 1. Install WSL2 with Ubuntu
+
+Open PowerShell as Administrator:
+
+```powershell
+wsl --install
+# Restart when prompted, then open Ubuntu from the Start menu
+```
+
+### 2. Install Python and Node inside WSL2
 
 ```bash
-cp .env.example .env   # if it exists, otherwise create it:
+sudo apt update && sudo apt install -y python3 python3-pip python3-venv
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
 ```
 
-Create `.env` in the project root with at minimum:
+### 3. Clone and run setup
+
+```bash
+git clone https://github.com/CEASLEY803/semantic-health-ledger.git
+cd semantic-health-ledger
+bash setup.sh
+```
+
+Add your Gemini API key to `.env`, then start both servers in two Ubuntu terminals as shown in Quick Start above. Open your **Windows** browser at `http://localhost:3000`.
+
+---
+
+## Configuration
+
+All config lives in `.env` (created by `setup.sh` from `.env.example`). The only required value is `GEMINI_API_KEY`. Everything else has sensible defaults.
 
 ```env
+# Required
 GEMINI_API_KEY=your_key_here
-```
 
-Optional overrides (defaults shown):
-
-```env
+# Optional — defaults shown
 GEMINI_MODEL=gemini-2.5-flash
-MEM0_USER_ID=primary_user
 DATABASE_PATH=data/osassistant.sqlite3
 WAL_PATH=data/wal.jsonl
+MEM0_USER_ID=primary_user
 MEM0_QDRANT_PATH=data/memory/qdrant
 MEM0_STATE_DIR=data/memory/mem0_state
 MEM0_COLLECTION_NAME=health_ledger_semantic
 MEM0_EMBEDDING_MODEL=models/gemini-embedding-001
 MEM0_EMBEDDING_DIMS=768
 ```
-
-### 4. Initialize the database
-
-This creates the SQLite database and WAL file under `data/`:
-
-```bash
-python init_storage.py
-```
-
-Expected output:
-```
-Initialized SQLite database at data/osassistant.sqlite3
-Initialized raw event WAL at data/wal.jsonl
-```
-
-### 5. Start the FastAPI server
-
-```bash
-uvicorn api:app --host 127.0.0.1 --port 8787 --reload
-```
-
-You should see:
-```
-INFO:     Uvicorn running on http://127.0.0.1:8787 (Press CTRL+C to quit)
-```
-
-Verify it's healthy:
-```bash
-curl http://localhost:8787/api/v1/health
-# → {"status":"ok"}
-```
-
----
-
-## Frontend Setup
-
-### 1. Install dependencies
-
-```bash
-cd frontend
-npm install
-```
-
-### 2. Start the Next.js dev server
-
-```bash
-npm run dev
-```
-
-You should see:
-```
-▲ Next.js 15.x.x
-   - Local: http://localhost:3000
-```
-
-The `next.config.ts` rewrite proxy automatically forwards all `/api/v1/*` requests from the browser to `localhost:8787`. No `.env.local` is needed when both servers run on the same machine.
-
----
-
-## Running the Full Stack
-
-Open **two WSL2 terminals** side by side:
-
-| Terminal 1 — Backend | Terminal 2 — Frontend |
-|---|---|
-| `source .venv/bin/activate` | `cd frontend` |
-| `uvicorn api:app --host 127.0.0.1 --port 8787 --reload` | `npm run dev` |
-
-Then open `http://localhost:3000` in your browser.
 
 ---
 

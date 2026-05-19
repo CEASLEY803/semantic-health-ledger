@@ -18,7 +18,7 @@ from memory_layer import add_semantic_memory, retrieve_context
 from models import AIExtractionPayload, BiometricLog, CompoundLog, DailyJournal, LabResult
 
 
-app = FastAPI(title="Harm Reduction Ledger API", version="1.0.0")
+app = FastAPI(title="Semantic Health Ledger API", version="1.0.0")
 
 
 class ChatMessage(BaseModel):
