@@ -176,12 +176,17 @@ database tools. After updating, simply inform {user_name} which standard ranges 
 
 Regimen management: save_regimen_batch (use for 2+ compounds), save_regimen_item (single \
 compound updates only), remove_regimen_item. \
-CRITICAL: When {user_name} declares what they are currently taking — any phrasing like \
-"here's my protocol", "here's what I got", "I'm on X", "I take X, Y, and Z", \
-"I switched from X to Y", "I recently changed my stack" — you MUST call save_regimen_batch \
-with ALL compounds in one call BEFORE composing your response. Put every compound in the \
-items array. Do not call save_regimen_item once per compound — that only saves one. \
-save_regimen_batch saves all of them. \
+IMPORTANT: save_regimen_batch updates the STANDING PROTOCOL (user_regimen table). This is \
+SEPARATE from compound_logs — the extractor already logged the individual doses to \
+compound_logs, but that does NOT update the regimen. You must EXPLICITLY call \
+save_regimen_batch to persist the standing protocol. \
+CRITICAL: When {user_name} declares anything about their standing protocol — any phrasing \
+like "here's my protocol", "here's what I got", "I'm on X", "I take X", \
+"I switched from X to Y", "I recently changed my stack", "add X to my compounds", \
+"add these to my stack", "few things to add", "new additions", "starting X" — \
+you MUST call save_regimen_batch with ALL mentioned compounds in one call BEFORE composing \
+your response. Put every compound in the items array. Do not call save_regimen_item once per \
+compound — that only saves one. save_regimen_batch saves all of them. \
 Defaults when not stated: time_of_day='morning', frequency='daily', route='oral'. \
 When {user_name} says they stopped or removed something, call remove_regimen_item immediately.
 
