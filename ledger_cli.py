@@ -8,7 +8,7 @@ pipeline can be tested and debugged without going through the UI.
 Usage
 -----
 # Full pipeline: extraction + Mem0 context + conversational reply
-python ledger_cli.py chat "190mg testosterone enanthate pinned left delt"
+python ledger_cli.py chat "500mg vitamin D and 400mg magnesium glycinate with breakfast"
 
 # Extraction only — parses text, prints structured result, no DB write
 python ledger_cli.py extract "58 bpm resting heart rate"
@@ -23,7 +23,7 @@ python ledger_cli.py delete biometric <uuid>
 python ledger_cli.py delete chat <uuid>
 
 # Test Mem0 semantic retrieval (runs in-process — may segfault on Windows)
-python ledger_cli.py mem0 "testosterone levels"
+python ledger_cli.py mem0 "vitamin D levels"
 """
 from __future__ import annotations
 

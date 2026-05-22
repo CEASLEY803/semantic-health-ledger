@@ -299,7 +299,7 @@ export default function LabsPanel({ labs, isLoading, onRefresh }: LabsPanelProps
     return (
       <div className="flex flex-col items-center justify-center gap-7 py-20">
         <h1 className="font-mono text-lg font-semibold tracking-wide text-zinc-200">
-          Awaiting Telemetry, Cole
+          Awaiting Telemetry
         </h1>
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-zinc-800 text-zinc-500">
           <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">

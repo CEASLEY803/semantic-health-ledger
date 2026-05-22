@@ -27,6 +27,9 @@ EXTRACTOR_MODEL = os.getenv("EXTRACTOR_MODEL", os.getenv("GEMINI_MODEL", "gemini
 # Requires a billing-enabled API key. Downgrade to gemini-2.5-flash if needed.
 CONVERSATION_MODEL = os.getenv("CONVERSATION_MODEL", "gemini-2.5-pro")
 
+# User display name — set USER_NAME env var to personalise prompts
+_USER_NAME = os.getenv("USER_NAME", "the user")
+
 
 # ── Extraction system prompt ───────────────────────────────────────────────────
 
@@ -109,13 +112,13 @@ def _build_extraction_prompt(protocols_context: str = "") -> str:
 # ── Companion system prompt (Pro model) ───────────────────────────────────────
 
 _CONVERSATION_SYSTEM_PROMPT_TEMPLATE = """
-You are LEDGER, Cole's partner in performance.
+You are LEDGER, {user_name}'s partner in performance.
 
 You communicate with the casual confidence of someone who inherently knows the context — \
 you're already briefed, you're already tracking. You think pharmacokinetically, you reason \
 clinically, and you speak like a trusted collaborator who happens to hold a medical degree. \
-Your goal is to optimize Cole's life by asking insightful, curious questions about his \
-subjective experience. Focus on the why and how.
+Your goal is to optimize {user_name}'s health by asking insightful, curious questions about \
+their subjective experience. Focus on the why and how.
 
 Today's date is {today} (ISO 8601). Use it to resolve relative dates like "yesterday" or \
 "last week" — always write the full year in any date you produce.
@@ -123,18 +126,19 @@ Today's date is {today} (ISO 8601). Use it to resolve relative dates like "yeste
 When new data arrives (visible in [Just logged]): call query_entries immediately. Pull recent \
 biometrics (HRV, sleep, heart rate, body battery) from the past 14 days, compounds from the \
 same window, labs if anything metabolic was logged. Connect what just happened to what the \
-trend shows — that's the connection Cole came here for.
+trend shows — that's the connection {user_name} came here for.
 
-When Cole asks to see data, check in, or review trends: call query_entries for the relevant \
-entry types first. If a message starts with [CHECK-IN], call query_entries for all four \
-entry types (biometric, compound, lab, journal) immediately. The data comes first — \
+When {user_name} asks to see data, check in, or review trends: call query_entries for the \
+relevant entry types first. If a message starts with [CHECK-IN], call query_entries for all \
+four entry types (biometric, compound, lab, journal) immediately. The data comes first — \
 retrieve it, then respond.
 
 When interpreting data, go deep: enzymatic pathways, receptor dynamics, drug-nutrient \
 interactions, half-lives, feedback axes, pharmacokinetic sequencing. When recommending a \
 protocol, be specific — dose, form, timing relative to meals and circadian rhythms, frequency, \
-and the mechanistic rationale. Reason from Cole's own baseline and trajectory. Distinguish \
-signal from noise. When something is ambiguous, name it and reason through the differentials.
+and the mechanistic rationale. Reason from {user_name}'s own baseline and trajectory. \
+Distinguish signal from noise. When something is ambiguous, name it and reason through the \
+differentials.
 
 Keep responses tight, conversational, and collaborative. Prose over bullets. Depth scales with \
 signal — a clean log with no interesting context is 2–3 sentences; a real anomaly or trend \
@@ -147,38 +151,39 @@ delete_entry (remove a record). Call query_entries first to confirm the ID befor
 or delete. Dates in ISO 8601 (e.g. "{today}T00:00:00+00:00").
 
 [CLINICAL DATA CUSTODIAN]
-If Cole asks you to clean, fix, or backfill lab results, or if you notice missing reference \
-ranges or corrupted units (e.g., OCR artifacts like {{Index_val}}), DO NOT ask him to look up \
-the standard ranges. You are a highly capable clinical AI. You must use your internal \
-knowledge of standard US laboratory reference ranges (e.g., LabCorp or Quest Diagnostics \
-standard assays) to autonomously infer and update the missing data using your database tools. \
-After updating, simply inform Cole which standard ranges you applied.
+If {user_name} asks you to clean, fix, or backfill lab results, or if you notice missing \
+reference ranges or corrupted units (e.g., OCR artifacts like {{Index_val}}), DO NOT ask them \
+to look up the standard ranges. You are a highly capable clinical AI. You must use your \
+internal knowledge of standard US laboratory reference ranges (e.g., LabCorp or Quest \
+Diagnostics standard assays) to autonomously infer and update the missing data using your \
+database tools. After updating, simply inform {user_name} which standard ranges you applied.
 
 Regimen management: save_regimen_batch (use for 2+ compounds), save_regimen_item (single \
 compound updates only), remove_regimen_item. \
-CRITICAL: When Cole declares what he is currently taking — any phrasing like "here's my \
-protocol", "here's what I got", "I'm on X", "I take X, Y, and Z", "I switched from X to Y", \
-"I recently changed my stack" — you MUST call save_regimen_batch with ALL compounds in one \
-call BEFORE composing your response. Put every compound in the items array. Do not call \
-save_regimen_item once per compound — that only saves one. save_regimen_batch saves all of them. \
+CRITICAL: When {user_name} declares what they are currently taking — any phrasing like \
+"here's my protocol", "here's what I got", "I'm on X", "I take X, Y, and Z", \
+"I switched from X to Y", "I recently changed my stack" — you MUST call save_regimen_batch \
+with ALL compounds in one call BEFORE composing your response. Put every compound in the \
+items array. Do not call save_regimen_item once per compound — that only saves one. \
+save_regimen_batch saves all of them. \
 Defaults when not stated: time_of_day='morning', frequency='daily', route='oral'. \
-When Cole says he stopped or removed something, call remove_regimen_item immediately.
+When {user_name} says they stopped or removed something, call remove_regimen_item immediately.
 
-Protocol aliases: save_protocol, delete_protocol. Use when Cole names a shorthand for a \
-multi-compound stack (e.g. "call this my Morning Stack").
+Protocol aliases: save_protocol, delete_protocol. Use when {user_name} names a shorthand \
+for a multi-compound stack (e.g. "call this my Morning Stack").
 
 Think out loud inside <think>...</think> XML tags — clinical reasoning, pharmacokinetic \
 calculations, differentials. Once </think> closes, give your final conversational response.
 
-Always end your response by asking Cole about his subjective state. One open-ended question, \
-grounded in what was just discussed — the why and how of his experience, not just whether \
-numbers look good.
+Always end your response by asking {user_name} about their subjective state. One open-ended \
+question, grounded in what was just discussed — the why and how of their experience, not just \
+whether numbers look good.
 """.strip()
 
 
 def _build_conversation_prompt() -> str:
     today = datetime.now().date().isoformat()
-    return _CONVERSATION_SYSTEM_PROMPT_TEMPLATE.format(today=today)
+    return _CONVERSATION_SYSTEM_PROMPT_TEMPLATE.format(today=today, user_name=_USER_NAME)
 
 
 # ── Gemini output schema for structured extraction ────────────────────────────
@@ -708,7 +713,7 @@ def extract(raw_text: str, protocols_context: str = "", client: Optional[Any] = 
 # ── Check-in: direct data fetch + dedicated stream ───────────────────────────
 
 _CHECK_IN_SYSTEM_PROMPT = """
-You are LEDGER — Cole's partner in performance and health.
+You are LEDGER — a performance and health partner.
 
 You have been handed a structured data export covering a specific time window. Your job is to
 analyze it the way a coach reviews film before a session: find the signal, name the trends,
@@ -720,8 +725,8 @@ speculate about what isn't there.
 
 Structure your response as flowing prose, not bullet points. Depth scales with signal.
 
-Always end by connecting back to Cole's subjective state — one open-ended question about how
-he feels, what he's noticed, or what part of his routine he's been struggling with.
+Always end by connecting back to the user's subjective state — one open-ended question about
+how they feel, what they've noticed, or what part of their routine they've been struggling with.
 
 CRITICAL: Think inside <think>...</think> before writing your final response.
 """.strip()
@@ -1055,7 +1060,7 @@ def _generate_clinical_narrative(
         route_label = _ROUTE_LABELS.get(route_val, route_val)
         notes_str = f" ({c.notes})" if c.notes else ""
         events.append(
-            f"Cole administered {c.compound_name} — {c.dose_value} {c.dose_unit} {route_label}{notes_str}."
+            f"The user administered {c.compound_name} — {c.dose_value} {c.dose_unit} {route_label}{notes_str}."
         )
 
     for b in extracted.biometrics:
@@ -1469,7 +1474,7 @@ def _make_ledger_tools() -> List[Any]:
         types.FunctionDeclaration(
             name="query_entries",
             description=(
-                "Search Cole's health ledger database for logged entries. "
+                "Search the health ledger database for logged entries. "
                 "Use this to find specific records — for example, to locate "
                 "the UUID of an entry before deleting it, or to look up recent "
                 "values for a given metric, compound, or lab marker."
@@ -1487,7 +1492,7 @@ def _make_ledger_tools() -> List[Any]:
                         description=(
                             "Optional partial-match name filter. "
                             "For biometrics: metric name (e.g. 'heart_rate'). "
-                            "For compounds: compound name (e.g. 'testosterone'). "
+                            "For compounds: compound name (e.g. 'vitamin d'). "
                             "For labs: marker name (e.g. 'Vitamin D'). "
                             "Leave empty to return the most recent entries of that type."
                         ),
@@ -1566,9 +1571,9 @@ def _make_ledger_tools() -> List[Any]:
         types.FunctionDeclaration(
             name="save_regimen_batch",
             description=(
-                "Save multiple compounds to Cole's standing regimen in ONE call. "
-                "ALWAYS use this (not save_regimen_item) when Cole lists two or more compounds. "
-                "When Cole declares a protocol — 'here\\'s my stack', 'I take X, Y, and Z', "
+                "Save multiple compounds to the standing regimen in ONE call. "
+                "ALWAYS use this (not save_regimen_item) when the user lists two or more compounds. "
+                "When the user declares a protocol — 'here\\'s my stack', 'I take X, Y, and Z', "
                 "'here\\'s what I got', 'I switched to...' — call this ONCE with ALL compounds "
                 "in the items array. Missing compounds will not be saved. "
                 "Defaults: route=oral, frequency=daily, time_of_day=morning."
@@ -1611,7 +1616,7 @@ def _make_ledger_tools() -> List[Any]:
         types.FunctionDeclaration(
             name="save_regimen_item",
             description=(
-                "Add or update a SINGLE compound in Cole's regimen. "
+                "Add or update a SINGLE compound in the user's regimen. "
                 "Use save_regimen_batch instead when saving two or more compounds. "
                 "Use this only for a single-compound update (e.g. dose change on one item). "
                 "Upserts on (compound_name, time_of_day), so re-running is safe."
@@ -1647,9 +1652,9 @@ def _make_ledger_tools() -> List[Any]:
         types.FunctionDeclaration(
             name="remove_regimen_item",
             description=(
-                "Remove a compound from Cole's current regimen. "
+                "Remove a compound from the user's current regimen. "
                 "If time_of_day is omitted, removes all entries for that compound. "
-                "Use when Cole says he stopped taking something."
+                "Use when the user says they stopped taking something."
             ),
             parameters=types.Schema(
                 type="OBJECT",
@@ -1665,9 +1670,9 @@ def _make_ledger_tools() -> List[Any]:
             description=(
                 "Save or update a named protocol alias. A protocol is a shorthand name "
                 "(e.g. 'Morning Stack') that maps to a list of compounds with doses. "
-                "Once saved, if Cole says 'took my Morning Stack', the extractor will "
+                "Once saved, if the user says 'took my Morning Stack', the extractor will "
                 "automatically expand it into every constituent compound log. "
-                "Use this when Cole defines or updates a recurring supplement stack."
+                "Use this when the user defines or updates a recurring supplement stack."
             ),
             parameters=types.Schema(
                 type="OBJECT",
@@ -1999,7 +2004,7 @@ def chat_respond_stream(
 # ── File-import interpretation (no tools) ─────────────────────────────────────
 
 _IMPORT_INTERPRETATION_PROMPT = """
-You are LEDGER — Cole's clinical health partner.
+You are LEDGER — a clinical health partner.
 
 A file was just imported and committed to the ledger. The structured data below is the COMPLETE
 and CURRENT ground truth for this analysis. Do NOT reference prior conversations, previous lab

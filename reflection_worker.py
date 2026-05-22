@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 # ── Synthesis system prompt ────────────────────────────────────────────────────
 
 _SYNTHESIS_SYSTEM_PROMPT = """
-You are LEDGER, Cole's autonomous clinical co-pilot performing your morning analysis.
+You are LEDGER, an autonomous clinical co-pilot performing your morning analysis.
 
 Your job: review yesterday's data, re-examine your existing theories, and output ONLY
 a JSON array of graph update commands. No prose. No markdown. Just the array.
@@ -45,7 +45,7 @@ Rules:
 
 [TEMPORAL TRACKING & PHARMACOKINETICS]
 
-When Cole mentions stopping, dropping, or discontinuing a compound with a meaningful
+When the user mentions stopping, dropping, or discontinuing a compound with a meaningful
 half-life, you MUST create a Temporal Tracking Node using CREATE_NODE with:
   - concept_name: "[TRACKING] <Compound Name> Clearance"
   - category: "pharmacokinetics"
@@ -138,7 +138,7 @@ def _fmt_chats(rows: List[Dict]) -> str:
         return "  (none)"
     lines = []
     for r in rows:
-        role = "Cole" if r.get("role") == "user" else "LEDGER"
+        role = "User" if r.get("role") == "user" else "LEDGER"
         content = (r.get("content") or "")[:300]
         lines.append(f"  {role}: {content}")
     return "\n".join(lines)

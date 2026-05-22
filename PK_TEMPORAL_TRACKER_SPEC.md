@@ -139,7 +139,7 @@ Add a new section to `_SYNTHESIS_SYSTEM_PROMPT` after the existing Rules block:
 ```
 [TEMPORAL TRACKING & PHARMACOKINETICS]
 
-When Cole mentions stopping, dropping, or discontinuing a compound with a meaningful
+When the user mentions stopping, dropping, or discontinuing a compound with a meaningful
 half-life, you MUST create a Temporal Tracking Node using CREATE_NODE with:
   - concept_name: "[TRACKING] <Compound Name> Clearance"
   - category: "pharmacokinetics"
@@ -270,10 +270,10 @@ elif command == "UPDATE_NODE":
 
 Once implemented, a typical flow looks like this:
 
-1. Cole says: *"I dropped Retatrutide today."*
+1. User says: *"I dropped Compound X today."*
 2. Flash extraction logs a compound entry. During that same chat turn, or the next morning
    synthesis, Gemini detects the discontinuation and issues a `CREATE_NODE` for
-   `[TRACKING] Retatrutide Clearance` with `expires_at` set ~42 days out (7 × 6-day half-life).
+   `[TRACKING] Compound X Clearance` with `expires_at` set ~42 days out (7 × 6-day half-life).
 3. Every morning, the Reflection Engine loads the node, sees it in the prompt with its
    `expires_at` and `last_surfaced_date`, calculates the current clearance percentage,
    and stays silent unless today is a milestone day.
