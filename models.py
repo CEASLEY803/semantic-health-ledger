@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional, Set
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -173,7 +173,7 @@ class DailyJournal(StrictModel):
 class AIExtractionPayload(StrictModel):
     raw_input_text: str = Field(min_length=1, max_length=4000)
     log_type: List[Literal["compound", "biometric", "lab_result", "daily_journal"]] = Field(
-        min_length=1,
+        default_factory=list,
         max_length=4,
     )
     compounds: List[CompoundLog] = Field(default_factory=list)
@@ -192,3 +192,48 @@ class AIExtractionPayload(StrictModel):
         if "daily_journal" in self.log_type and not self.journals:
             raise ValueError("daily_journal log_type requires at least one journal")
         return self
+
+
+# ── Knowledge Graph models ─────────────────────────────────────────────────────
+
+class ConfidenceLevel(str, Enum):
+    HYPOTHESIS = "hypothesis"
+    TESTING = "testing"
+    CONFIRMED = "confirmed"
+
+
+class ClinicalNode(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: Optional[str] = None
+    concept_name: str
+    category: str
+    summary_text: str
+    confidence_level: str
+    last_updated: Optional[str] = None
+    expires_at: Optional[str] = None
+    last_surfaced_date: Optional[str] = None
+    is_archived: int = 0
+
+
+class ClinicalEdge(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: Optional[str] = None
+    source_node_id: Optional[str] = None
+    target_node_id: Optional[str] = None
+    source: Optional[str] = None   # resolved concept_name, populated by JOIN queries
+    target: Optional[str] = None   # resolved concept_name, populated by JOIN queries
+    relationship_type: str
+    evidence_summary: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+# ── Shared updatable-field allowlist ──────────────────────────────────────────
+# Single source of truth — imported by api.py and llm_service.py.
+# Using sets for O(1) membership checks.
+UPDATABLE_FIELDS: Dict[str, Set[str]] = {
+    "biometric": {"recorded_at", "metric_name", "value", "unit", "notes"},
+    "compound":  {"recorded_at", "compound_name", "dose_value", "dose_unit", "route", "site", "notes"},
+    "lab":       {"collected_at", "resulted_at", "panel_name", "marker_name",
+                  "value_numeric", "unit", "reference_low", "reference_high", "notes", "flagged"},
+    "journal":   {"journal_date", "mood", "energy_score", "sleep_hours", "notes"},
+}

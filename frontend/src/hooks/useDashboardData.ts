@@ -3,16 +3,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   fetchBiometrics,
-  fetchCompounds,
   fetchJournals,
   fetchLabResults,
+  fetchRegimen,
 } from '@/lib/api';
-import type { BiometricLog, CompoundLog, DailyJournal, LabResult } from '@/lib/types';
+import type { BiometricLog, DailyJournal, LabResult, RegimenItem } from '@/lib/types';
 
 interface DashboardData {
   labs: LabResult[];
   biometrics: BiometricLog[];
-  compounds: CompoundLog[];
+  regimen: RegimenItem[];
   journals: DailyJournal[];
 }
 
@@ -25,26 +25,20 @@ interface UseDashboardDataResult extends DashboardData {
 const EMPTY: DashboardData = {
   labs: [],
   biometrics: [],
-  compounds: [],
+  regimen: [],
   journals: [],
 };
 
 // refreshKey is incremented by page.tsx after every successful chat ingest.
-// Changing it triggers a full re-fetch of all four history endpoints.
+// manualKey is incremented by refetch() for UI-triggered refreshes (e.g. delete).
+// Both are direct dependencies so the fetch fires in a single render cycle.
 export function useDashboardData(refreshKey: number): UseDashboardDataResult {
   const [data, setData] = useState<DashboardData>(EMPTY);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [internalKey, setInternalKey] = useState(refreshKey);
+  const [manualKey, setManualKey] = useState(0);
 
-  const refetch = useCallback(() => {
-    setInternalKey((k) => k + 1);
-  }, []);
-
-  // Keep internalKey in sync when the parent increments refreshKey
-  useEffect(() => {
-    setInternalKey(refreshKey);
-  }, [refreshKey]);
+  const refetch = useCallback(() => setManualKey((k) => k + 1), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,12 +48,12 @@ export function useDashboardData(refreshKey: number): UseDashboardDataResult {
     Promise.all([
       fetchLabResults(),
       fetchBiometrics(),
-      fetchCompounds(),
+      fetchRegimen(),
       fetchJournals(),
     ])
-      .then(([labs, biometrics, compounds, journals]) => {
+      .then(([labs, biometrics, regimen, journals]) => {
         if (!cancelled) {
-          setData({ labs, biometrics, compounds, journals });
+          setData({ labs, biometrics, regimen, journals });
         }
       })
       .catch((err) => {
@@ -74,7 +68,7 @@ export function useDashboardData(refreshKey: number): UseDashboardDataResult {
     return () => {
       cancelled = true;
     };
-  }, [internalKey]);
+  }, [refreshKey, manualKey]);
 
   return { ...data, isLoading, error, refetch };
 }

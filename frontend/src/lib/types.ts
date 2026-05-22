@@ -76,26 +76,76 @@ export interface DailyJournal {
   raw_text: string | null;
 }
 
+export interface RegimenItem {
+  id: string;
+  compound_name: string;
+  dose_value: string;
+  dose_unit: string;
+  route: AdministrationRoute;
+  site: string | null;
+  frequency: string;
+  time_of_day: string;
+  days_of_week: string | null;
+  notes: string | null;
+}
+
 // Chat / ingest shapes
+
+export interface CommittedCounts {
+  compound_logs: number;
+  biometric_logs: number;
+  lab_results: number;
+  daily_journals: number;
+}
 
 export interface ChatIngestResponse {
   status: 'success' | 'error';
-  ledger_response: {
-    committed: {
-      compound_logs: number;
-      biometric_logs: number;
-      lab_results: number;
-      daily_journals: number;
-    };
-    log_type: string[];
-    semantic_memory: string;
-  };
+  reply: string;
+  committed?: CommittedCounts | null;
 }
 
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   text: string;
-  ledger_response?: ChatIngestResponse['ledger_response'];
+  thinkingText?: string;
+  committed?: CommittedCounts | null;
   timestamp: string;
+}
+
+// Shape returned by GET /api/v1/chat/history
+export interface ChatHistoryRow {
+  id: string;
+  role: 'user' | 'model';  // Gemini convention; map 'model' → 'assistant' in UI
+  content: string;
+  created_at: string;
+}
+
+// ── Knowledge Graph ───────────────────────────────────────────────────────────
+
+export type ConfidenceLevel = 'hypothesis' | 'testing' | 'confirmed';
+
+export interface ClinicalNode {
+  concept_name: string;
+  category: string;
+  summary_text: string;
+  confidence_level: ConfidenceLevel;
+  last_updated: string;
+  expires_at?: string | null;
+  last_surfaced_date?: string | null;
+  is_archived?: number;
+}
+
+export interface ClinicalEdge {
+  source: string;
+  target: string;
+  relationship_type: string;
+  evidence_summary: string | null;
+}
+
+export interface MorningBriefing {
+  synthesis_date: string | null;
+  nodes: ClinicalNode[];
+  edges: ClinicalEdge[];
+  ready: boolean;
 }

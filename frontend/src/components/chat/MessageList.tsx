@@ -10,9 +10,15 @@ interface MessageListProps {
 export default function MessageList({ messages }: MessageListProps) {
   if (messages.length === 0) {
     return (
-      <p className="mt-8 text-center text-xs text-gray-600">
-        Send a message to log vitals, labs, compounds, or journal entries.
-      </p>
+      <div className="mt-10 flex flex-col items-center gap-3 text-center">
+        <div className="flex items-center gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.7)]" />
+          <span className="font-mono text-[10px] tracking-widest text-zinc-500">LEDGER ONLINE</span>
+        </div>
+        <p className="font-mono text-[10px] tracking-widest text-zinc-600">
+          LOG VITALS · ASK QUESTIONS · REVIEW TRENDS
+        </p>
+      </div>
     );
   }
 

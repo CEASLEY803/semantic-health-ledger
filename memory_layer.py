@@ -1,17 +1,22 @@
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 
+logger = logging.getLogger(__name__)
+
 
 load_dotenv()
 
+_BASE = Path(__file__).resolve().parent
+
 MEM0_USER_ID = os.getenv("MEM0_USER_ID", "primary_user")
-MEM0_STATE_DIR = Path(os.getenv("MEM0_STATE_DIR", "data/memory/mem0_state"))
-MEM0_QDRANT_PATH = Path(os.getenv("MEM0_QDRANT_PATH", "data/memory/qdrant"))
+MEM0_STATE_DIR = Path(os.getenv("MEM0_STATE_DIR", str(_BASE / "data" / "memory" / "mem0_state")))
+MEM0_QDRANT_PATH = Path(os.getenv("MEM0_QDRANT_PATH", str(_BASE / "data" / "memory" / "qdrant")))
 MEM0_COLLECTION_NAME = os.getenv("MEM0_COLLECTION_NAME", "health_ledger_semantic")
 MEM0_LLM_MODEL = os.getenv("MEM0_LLM_MODEL", os.getenv("GEMINI_MODEL", "gemini-2.5-flash"))
 MEM0_EMBEDDING_MODEL = os.getenv("MEM0_EMBEDDING_MODEL", "models/gemini-embedding-001")
@@ -78,7 +83,7 @@ def add_semantic_memory(raw_text: str, user_id: str = MEM0_USER_ID) -> Dict[str,
         result = memory.add(messages=raw_text, user_id=user_id)
         return {"status": "success", "result": result}
     except Exception as exc:
-        print(f"Mem0 Error: {exc}")
+        logger.error(f"[mem0] add error: {exc}", exc_info=True)
         return {"status": "error", "message": str(exc)}
 
 
@@ -94,7 +99,7 @@ def retrieve_context(query: str, top_k: int = 5, user_id: str = MEM0_USER_ID) ->
             top_k=top_k,
         )
     except Exception as exc:
-        print(f"Mem0 Search Error: {exc}")
+        logger.error(f"[mem0] search error: {exc}", exc_info=True)
         return ""
 
     memories = normalize_search_results(results)

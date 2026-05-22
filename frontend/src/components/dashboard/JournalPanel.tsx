@@ -1,15 +1,17 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { deleteEntry } from '@/lib/api';
 import type { DailyJournal, Mood } from '@/lib/types';
+import { ActiveTrackingBoard } from '@/components/journal/ActiveTrackingBoard';
 
 interface JournalPanelProps {
   journals: DailyJournal[];
   isLoading: boolean;
+  onRefresh: () => void;
 }
 
 // ── Schema coercion ───────────────────────────────────────────────────────────
-// SQLite returns sleep_hours as a string and symptoms as a JSON string.
 
 function parseSymptoms(raw: string): string[] {
   try {
@@ -32,27 +34,27 @@ const MOOD_CONFIG: Record<
   Mood,
   { label: string; score: number; bar: string; text: string; bg: string }
 > = {
-  very_low: { label: 'Very Low', score: 1, bar: 'bg-red-500',    text: 'text-red-400',    bg: 'bg-red-950/30' },
-  low:      { label: 'Low',      score: 2, bar: 'bg-orange-500', text: 'text-orange-400', bg: 'bg-orange-950/30' },
-  neutral:  { label: 'Neutral',  score: 3, bar: 'bg-yellow-500', text: 'text-yellow-400', bg: 'bg-yellow-950/20' },
-  good:     { label: 'Good',     score: 4, bar: 'bg-emerald-500',text: 'text-emerald-400',bg: 'bg-emerald-950/30' },
-  very_good:{ label: 'Very Good',score: 5, bar: 'bg-blue-500',   text: 'text-blue-400',   bg: 'bg-blue-950/30' },
+  very_low:  { label: 'Very Low',  score: 1, bar: 'bg-rose-500',    text: 'text-rose-400',    bg: 'bg-rose-500/[0.04]' },
+  low:       { label: 'Low',       score: 2, bar: 'bg-amber-500',   text: 'text-amber-400',   bg: 'bg-amber-500/[0.04]' },
+  neutral:   { label: 'Neutral',   score: 3, bar: 'bg-yellow-400',  text: 'text-yellow-400',  bg: 'bg-yellow-400/[0.03]' },
+  good:      { label: 'Good',      score: 4, bar: 'bg-emerald-500', text: 'text-emerald-400', bg: 'bg-emerald-400/[0.04]' },
+  very_good: { label: 'Very Good', score: 5, bar: 'bg-cyan-400',    text: 'text-cyan-400',    bg: 'bg-cyan-400/[0.04]' },
 };
 
-// ── Energy config ─────────────────────────────────────────────────────────────
+// ── Energy helpers ────────────────────────────────────────────────────────────
 
 function energyColor(score: number): string {
-  if (score <= 3) return 'text-red-400';
-  if (score <= 5) return 'text-orange-400';
+  if (score <= 3) return 'text-rose-400';
+  if (score <= 5) return 'text-amber-400';
   if (score <= 7) return 'text-yellow-400';
   return 'text-emerald-400';
 }
 
 function energyBarColor(score: number): string {
-  if (score <= 3) return 'bg-red-500';
-  if (score <= 5) return 'bg-orange-500';
-  if (score <= 7) return 'bg-yellow-500';
-  return 'bg-emerald-500';
+  if (score <= 3) return 'bg-rose-500';
+  if (score <= 5) return 'bg-amber-500';
+  if (score <= 7) return 'bg-yellow-400';
+  return 'bg-emerald-400';
 }
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
@@ -75,15 +77,15 @@ function formatCardDate(iso: string): { primary: string; secondary: string } {
     year: d.getFullYear() !== today.getFullYear() ? 'numeric' : undefined,
   });
 
-  if (sameDay(d, today)) return { primary: 'Today', secondary };
-  if (sameDay(d, yesterday)) return { primary: 'Yesterday', secondary };
+  if (sameDay(d, today)) return { primary: 'TODAY', secondary };
+  if (sameDay(d, yesterday)) return { primary: 'YESTERDAY', secondary };
   return {
-    primary: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+    primary: d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase(),
     secondary,
   };
 }
 
-// ── Derived journal entry (coerced + enriched) ────────────────────────────────
+// ── Derived journal entry ─────────────────────────────────────────────────────
 
 interface JournalEntry {
   raw: DailyJournal;
@@ -123,19 +125,12 @@ function rollingAverages(entries: JournalEntry[], days = 7): RollingAverages {
     nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
 
   const sleeps = window.map((e) => e.sleepHours).filter((v): v is number => v !== null);
-  const energies = window
-    .map((e) => e.raw.energy_score)
-    .filter((v): v is number => v !== null);
+  const energies = window.map((e) => e.raw.energy_score).filter((v): v is number => v !== null);
   const moods = window
     .map((e) => (e.raw.mood ? MOOD_CONFIG[e.raw.mood].score : null))
     .filter((v): v is number => v !== null);
 
-  return {
-    sleep: avg(sleeps),
-    energy: avg(energies),
-    mood: avg(moods),
-    entryCount: window.length,
-  };
+  return { sleep: avg(sleeps), energy: avg(energies), mood: avg(moods), entryCount: window.length };
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -154,17 +149,19 @@ function AvgCard({
   subtext?: string;
 }) {
   return (
-    <div className="flex flex-col gap-0.5 rounded-lg border border-gray-800 bg-gray-900 px-4 py-3">
-      <span className="text-xs text-gray-500">{label}</span>
+    <div className="flex flex-col gap-1 border border-zinc-800 bg-zinc-900 px-4 py-3">
+      <span className="font-mono text-[10px] tracking-widest text-zinc-400">{label}</span>
       {value !== null ? (
-        <span className={`text-xl font-bold tabular-nums ${color}`}>
+        <span className={`font-mono text-xl font-bold tabular-nums ${color}`}>
           {value}
-          {unit && <span className="ml-0.5 text-sm font-normal text-gray-500">{unit}</span>}
+          {unit && <span className="ml-0.5 font-mono text-xs font-normal text-zinc-400">{unit}</span>}
         </span>
       ) : (
-        <span className="text-xl font-bold text-gray-700">—</span>
+        <span className="font-mono text-xl font-bold text-zinc-600">—</span>
       )}
-      {subtext && <span className="text-[11px] text-gray-600">{subtext}</span>}
+      {subtext && (
+        <span className="font-mono text-[10px] tracking-widest text-zinc-500">{subtext}</span>
+      )}
     </div>
   );
 }
@@ -177,13 +174,13 @@ function MoodBar({ mood }: { mood: Mood }) {
         {([1, 2, 3, 4, 5] as const).map((i) => (
           <div
             key={i}
-            className={`h-2.5 w-2.5 rounded-sm ${
-              i <= cfg.score ? cfg.bar : 'bg-gray-800'
-            }`}
+            className={`h-2 w-2 ${i <= cfg.score ? cfg.bar : 'bg-white/[0.06]'}`}
           />
         ))}
       </div>
-      <span className={`text-xs font-semibold ${cfg.text}`}>{cfg.label}</span>
+      <span className={`font-mono text-[11px] font-semibold tracking-wide ${cfg.text}`}>
+        {cfg.label}
+      </span>
     </div>
   );
 }
@@ -191,13 +188,13 @@ function MoodBar({ mood }: { mood: Mood }) {
 function EnergyBar({ score }: { score: number }) {
   return (
     <div className="flex items-center gap-2">
-      <div className="h-1.5 w-24 overflow-hidden rounded-full bg-gray-800">
+      <div className="h-1 w-24 overflow-hidden bg-white/[0.06]">
         <div
-          className={`h-full rounded-full transition-all ${energyBarColor(score)}`}
+          className={`h-full transition-all ${energyBarColor(score)}`}
           style={{ width: `${score * 10}%` }}
         />
       </div>
-      <span className={`font-mono text-xs font-semibold ${energyColor(score)}`}>
+      <span className={`font-mono text-xs font-semibold tabular-nums ${energyColor(score)}`}>
         {score}/10
       </span>
     </div>
@@ -211,7 +208,7 @@ function SymptomChips({ symptoms }: { symptoms: string[] }) {
       {symptoms.map((s, i) => (
         <span
           key={i}
-          className="rounded-full border border-amber-900/60 bg-amber-950/30 px-2.5 py-0.5 text-[11px] font-medium text-amber-400"
+          className="rounded-sm border border-amber-500/20 bg-amber-500/[0.06] px-2 py-0.5 font-mono text-[10px] tracking-wide text-amber-400"
         >
           {s}
         </span>
@@ -220,62 +217,83 @@ function SymptomChips({ symptoms }: { symptoms: string[] }) {
   );
 }
 
-function JournalCard({ entry }: { entry: JournalEntry }) {
+function JournalCard({ entry, onRefresh }: { entry: JournalEntry; onRefresh: () => void }) {
   const { raw, symptoms, sleepHours } = entry;
   const { primary, secondary } = formatCardDate(raw.journal_date);
   const hasMeta = raw.mood || raw.energy_score !== null || sleepHours !== null;
   const moodCfg = raw.mood ? MOOD_CONFIG[raw.mood] : null;
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      await deleteEntry('journal', raw.id);
+      onRefresh();
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <article
-      className={`flex flex-col gap-4 rounded-lg border bg-gray-900 p-5 ${
-        moodCfg ? `border-gray-800 ${moodCfg.bg}` : 'border-gray-800'
-      }`}
+      className={`group flex flex-col gap-4 border border-zinc-800 bg-zinc-900 p-5 ${moodCfg?.bg ?? ''}`}
     >
-      {/* Header: date + quick stats */}
+      {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-base font-bold text-gray-100">{primary}</p>
-          <p className="text-xs text-gray-500">{secondary}</p>
+          <p className="font-mono text-sm font-bold text-zinc-100">{primary}</p>
+          <p className="font-mono text-[10px] tracking-widest text-zinc-400">{secondary}</p>
         </div>
 
-        {hasMeta && (
-          <div className="flex flex-col gap-2">
-            {raw.mood && <MoodBar mood={raw.mood} />}
-            {raw.energy_score !== null && <EnergyBar score={raw.energy_score} />}
-            {sleepHours !== null && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-gray-600">Sleep</span>
-                <span className="font-mono text-xs font-semibold text-gray-300">
-                  {sleepHours}h
-                </span>
-              </div>
-            )}
-          </div>
-        )}
+        <div className="flex items-start gap-4">
+          {hasMeta && (
+            <div className="flex flex-col gap-2">
+              {raw.mood && <MoodBar mood={raw.mood} />}
+              {raw.energy_score !== null && <EnergyBar score={raw.energy_score} />}
+              {sleepHours !== null && (
+                <div className="flex items-center gap-1.5">
+                  <span className="font-mono text-[10px] tracking-widest text-zinc-400">SLEEP</span>
+                  <span className="font-mono text-xs font-semibold tabular-nums text-zinc-300">
+                    {sleepHours}h
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="opacity-0 group-hover:opacity-100 transition-opacity font-mono text-sm text-zinc-500 hover:text-rose-400 disabled:text-zinc-600 mt-0.5"
+            title="Delete this journal entry"
+          >
+            {deleting ? '…' : '×'}
+          </button>
+        </div>
       </div>
 
-      {/* Notes — primary content */}
-      <p className="text-sm leading-relaxed text-gray-300 whitespace-pre-wrap">
-        {raw.notes}
-      </p>
+      {/* Notes */}
+      <p className="text-sm leading-relaxed text-zinc-300 whitespace-pre-wrap">{raw.notes}</p>
 
       {/* Symptoms */}
       <SymptomChips symptoms={symptoms} />
 
-      {/* Optional: training / nutrition as collapsed metadata */}
+      {/* Training / nutrition */}
       {(raw.training || raw.nutrition) && (
-        <div className="flex flex-col gap-1 border-t border-gray-800 pt-3 text-xs">
+        <div className="flex flex-col gap-1 border-t border-white/[0.06] pt-3">
           {raw.training && (
             <div className="flex gap-2">
-              <span className="w-16 flex-none text-gray-600">Training</span>
-              <span className="text-gray-400">{raw.training}</span>
+              <span className="w-16 flex-none font-mono text-[10px] tracking-widest text-zinc-400">
+                TRAINING
+              </span>
+              <span className="text-xs text-zinc-400">{raw.training}</span>
             </div>
           )}
           {raw.nutrition && (
             <div className="flex gap-2">
-              <span className="w-16 flex-none text-gray-600">Nutrition</span>
-              <span className="text-gray-400">{raw.nutrition}</span>
+              <span className="w-16 flex-none font-mono text-[10px] tracking-widest text-zinc-400">
+                NUTRITION
+              </span>
+              <span className="text-xs text-zinc-400">{raw.nutrition}</span>
             </div>
           )}
         </div>
@@ -288,7 +306,7 @@ function JournalCard({ entry }: { entry: JournalEntry }) {
 
 type MoodFilter = Mood | 'all';
 
-export default function JournalPanel({ journals, isLoading }: JournalPanelProps) {
+export default function JournalPanel({ journals, isLoading, onRefresh }: JournalPanelProps) {
   const [moodFilter, setMoodFilter] = useState<MoodFilter>('all');
 
   const entries = useMemo(() => enrichJournals(journals), [journals]);
@@ -299,7 +317,6 @@ export default function JournalPanel({ journals, isLoading }: JournalPanelProps)
     return entries.filter((e) => e.raw.mood === moodFilter);
   }, [entries, moodFilter]);
 
-  // Collect every unique symptom across all entries for a quick frequency map
   const symptomFreq = useMemo(() => {
     const freq = new Map<string, number>();
     for (const e of entries) {
@@ -312,48 +329,56 @@ export default function JournalPanel({ journals, isLoading }: JournalPanelProps)
 
   if (isLoading) {
     return (
-      <div className="flex h-40 items-center justify-center text-sm text-gray-500">
-        Loading journal entries…
+      <div className="flex h-64 items-center justify-center font-mono text-xs tracking-widest text-zinc-500">
+        LOADING JOURNAL ENTRIES…
       </div>
     );
   }
 
   if (journals.length === 0) {
     return (
-      <div className="flex h-40 items-center justify-center text-sm text-gray-600">
-        No journal entries yet. Use the chat panel to log a daily check-in.
+      <div className="flex h-64 flex-col items-center justify-center gap-4">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-800 text-zinc-500">
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+          </svg>
+        </div>
+        <div className="flex flex-col items-center gap-1.5">
+          <p className="font-mono text-xs font-semibold tracking-widest text-zinc-300">NO JOURNAL ENTRIES</p>
+          <p className="font-mono text-[10px] tracking-widest text-zinc-500">Log a daily check-in to begin tracking</p>
+        </div>
       </div>
     );
   }
 
-  // Mood score → label for the average display
   const moodScoreToLabel = (score: number): string => {
     const rounded = Math.round(score);
-    return (
-      Object.values(MOOD_CONFIG).find((c) => c.score === rounded)?.label ?? '—'
-    );
+    return Object.values(MOOD_CONFIG).find((c) => c.score === rounded)?.label ?? '—';
   };
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* ── Summary row ── */}
+    <div className="flex flex-col gap-4">
+      {/* Active PK clearance board — renders nothing when empty */}
+      <ActiveTrackingBoard />
+
+      {/* Summary row */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <AvgCard
-          label="7-Day Avg Sleep"
+          label="7-DAY AVG SLEEP"
           value={avgs.sleep !== null ? avgs.sleep.toFixed(1) : null}
           unit="h"
-          color="text-blue-400"
-          subtext={`${avgs.entryCount} entries this week`}
+          color="text-cyan-400"
+          subtext={`${avgs.entryCount} ENTRIES THIS WEEK`}
         />
         <AvgCard
-          label="7-Day Avg Energy"
+          label="7-DAY AVG ENERGY"
           value={avgs.energy !== null ? avgs.energy.toFixed(1) : null}
           unit="/10"
-          color={avgs.energy !== null ? energyColor(Math.round(avgs.energy)) : 'text-gray-400'}
-          subtext="rolling score"
+          color={avgs.energy !== null ? energyColor(Math.round(avgs.energy)) : 'text-zinc-400'}
+          subtext="ROLLING SCORE"
         />
         <AvgCard
-          label="7-Day Avg Mood"
+          label="7-DAY AVG MOOD"
           value={avgs.mood !== null ? moodScoreToLabel(avgs.mood) : null}
           color={
             avgs.mood !== null
@@ -362,30 +387,28 @@ export default function JournalPanel({ journals, isLoading }: JournalPanelProps)
                     ([, v]) => v.score === Math.round(avgs.mood!),
                   )?.[0] as Mood) ?? 'neutral'
                 ].text
-              : 'text-gray-400'
+              : 'text-zinc-400'
           }
-          subtext="based on logged days"
+          subtext="BASED ON LOGGED DAYS"
         />
         <AvgCard
-          label="Total Entries"
+          label="TOTAL ENTRIES"
           value={String(journals.length)}
-          color="text-gray-200"
-          subtext={
-            symptomFreq.length
-              ? `Top: ${symptomFreq[0][0]}`
-              : 'No symptoms logged'
-          }
+          color="text-zinc-200"
+          subtext={symptomFreq.length ? `TOP: ${symptomFreq[0][0].toUpperCase()}` : 'NO SYMPTOMS LOGGED'}
         />
       </div>
 
-      {/* ── Top symptoms ── */}
+      {/* Top symptoms */}
       {symptomFreq.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-800 bg-gray-900 px-4 py-3">
-          <span className="text-xs text-gray-500">Most frequent symptoms:</span>
+        <div className="flex flex-wrap items-center gap-2 border border-white/10 bg-zinc-950 px-4 py-3">
+          <span className="font-mono text-[10px] tracking-widest text-zinc-400">
+            FREQUENT SYMPTOMS:
+          </span>
           {symptomFreq.map(([s, count]) => (
             <span
               key={s}
-              className="rounded-full border border-amber-900/60 bg-amber-950/30 px-2.5 py-0.5 text-[11px] font-medium text-amber-400"
+              className="rounded-sm border border-amber-500/20 bg-amber-500/[0.06] px-2 py-0.5 font-mono text-[10px] tracking-wide text-amber-400"
             >
               {s}
               <span className="ml-1 opacity-60">×{count}</span>
@@ -394,37 +417,37 @@ export default function JournalPanel({ journals, isLoading }: JournalPanelProps)
         </div>
       )}
 
-      {/* ── Mood filter ── */}
+      {/* Mood filter + entry count */}
       <div className="flex items-center justify-between">
-        <p className="text-xs text-gray-600">
-          {filtered.length} of {journals.length} entries
+        <p className="font-mono text-[10px] tracking-widest text-zinc-400">
+          {filtered.length} OF {journals.length} ENTRIES
         </p>
         <select
           value={moodFilter}
           onChange={(e) => setMoodFilter(e.target.value as MoodFilter)}
-          className="rounded border border-gray-700 bg-gray-800 px-2 py-1 text-xs text-gray-300 focus:outline-none"
+          className="border border-zinc-700 bg-zinc-800 px-3 py-1.5 font-mono text-[11px] tracking-widest text-zinc-300 transition-colors focus:border-cyan-400/50 focus:outline-none"
         >
-          <option value="all">All Moods</option>
+          <option value="all" className="bg-black">ALL MOODS</option>
           {(Object.entries(MOOD_CONFIG) as [Mood, (typeof MOOD_CONFIG)[Mood]][]).map(
             ([key, cfg]) => (
-              <option key={key} value={key}>
-                {cfg.label}
+              <option key={key} value={key} className="bg-black">
+                {cfg.label.toUpperCase()}
               </option>
             ),
           )}
         </select>
       </div>
 
-      {/* ── Entry feed ── */}
+      {/* Entry feed */}
       {filtered.length === 0 ? (
-        <p className="py-10 text-center text-sm text-gray-600">
-          No entries match the current filter.
+        <p className="py-10 text-center font-mono text-xs tracking-widest text-zinc-500">
+          NO ENTRIES MATCH CURRENT FILTER
         </p>
       ) : (
-        <ul className="flex flex-col gap-4">
+        <ul className="flex flex-col gap-3">
           {filtered.map((entry) => (
             <li key={entry.raw.id}>
-              <JournalCard entry={entry} />
+              <JournalCard entry={entry} onRefresh={onRefresh} />
             </li>
           ))}
         </ul>
