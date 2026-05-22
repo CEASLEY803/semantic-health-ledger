@@ -6,13 +6,16 @@ Log supplements, biometrics, lab results, and journal entries in plain text. Gem
 
 ## Before you start
 
-You need three things installed:
+You need four things installed:
 
 | Tool | Minimum | Get it |
 |---|---|---|
 | Python | 3.9+ (3.11 recommended) | [python.org](https://www.python.org/downloads/) |
 | Node.js | 18+ | [nodejs.org](https://nodejs.org/) |
+| Rust | latest stable | [rustup.rs](https://rustup.rs) — also installs `cargo` |
 | Gemini API key | — | [aistudio.google.com](https://aistudio.google.com) (free tier works) |
+
+> **Windows note:** Rust requires the MSVC build tools. The `rustup` installer will prompt you to install them if they're missing — allow it. The first `tauri dev` run will also download WebView2 if it isn't already present. Expect the first build to take 5–10 minutes while Cargo compiles dependencies.
 
 ---
 
@@ -82,12 +85,31 @@ GEMINI_API_KEY=your_key_here
 Everything else has sensible defaults. Optional overrides:
 
 ```env
+# Personalise LEDGER's system prompts — your name never touches git
+USER_NAME=Your Name
+
+# Model routing (defaults shown)
 GEMINI_MODEL=gemini-2.5-flash
+EXTRACTOR_MODEL=gemini-2.5-flash
+CONVERSATION_MODEL=gemini-2.5-pro
+
+# Storage paths
 DATABASE_PATH=data/ledger.sqlite3
 MEM0_USER_ID=primary_user
 MEM0_QDRANT_PATH=data/memory/qdrant
 MEM0_COLLECTION_NAME=health_ledger_semantic
 ```
+
+### Garmin sync (optional)
+
+Garmin sync is entirely optional — the app works without it. If you want automatic sleep, HRV, and heart rate data pulled from your Garmin device, add your credentials to `.env`:
+
+```env
+GARMIN_EMAIL=your.garmin@email.com
+GARMIN_PASSWORD=your_garmin_password
+```
+
+Then click the sync button in the app. Garmin rate-limits aggressive login attempts (~24–48 hr block if you hit it repeatedly), so authenticate once and let the token refresh automatically.
 
 ---
 
