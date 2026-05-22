@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ChatMessage, CommittedCounts } from '@/lib/types';
@@ -55,6 +56,7 @@ export function MarkdownContent({ text, className }: { text: string; className?:
 
 export default function ChatBubble({ message }: ChatBubbleProps) {
   const isUser = message.role === 'user';
+  const [thinkingOpen, setThinkingOpen] = useState(false);
 
   if (isUser) {
     return (
@@ -74,9 +76,23 @@ export default function ChatBubble({ message }: ChatBubbleProps) {
       <div className="max-w-[85%] border-l-2 border-emerald-500/40 bg-zinc-900/80 py-2.5 pl-3.5 pr-4 ring-1 ring-zinc-800/60">
         <p className="mb-1.5 font-mono text-[9px] tracking-widest text-emerald-500/60">LEDGER</p>
         {message.thinkingText && (
-          <div className="mb-3 border-l border-zinc-700 pl-3">
-            <p className="mb-1 font-mono text-[9px] tracking-widest text-zinc-600">CLINICAL REASONING</p>
-            <p className="text-xs italic leading-relaxed text-zinc-600">{message.thinkingText}</p>
+          <div className="mb-3">
+            <button
+              onClick={() => setThinkingOpen((o) => !o)}
+              className="flex items-center gap-1.5 group"
+            >
+              <span className="font-mono text-[9px] tracking-widest text-zinc-600 group-hover:text-zinc-400 transition-colors">
+                CLINICAL REASONING
+              </span>
+              <span className="font-mono text-[9px] text-zinc-700 group-hover:text-zinc-500 transition-colors">
+                {thinkingOpen ? '▲' : '▼'}
+              </span>
+            </button>
+            {thinkingOpen && (
+              <div className="mt-1.5 border-l border-zinc-700 pl-3">
+                <p className="text-xs italic leading-relaxed text-zinc-600">{message.thinkingText}</p>
+              </div>
+            )}
           </div>
         )}
         <MarkdownContent text={message.text} className="text-zinc-200" />

@@ -8,13 +8,14 @@ import CompoundsPanel from './CompoundsPanel';
 import JournalPanel from './JournalPanel';
 import LedgerThoughtsCard from './LedgerThoughtsCard';
 
-type Tab = 'labs' | 'biometrics' | 'compounds' | 'journal';
+type Tab = 'labs' | 'biometrics' | 'compounds' | 'journal' | 'knowledge';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'labs', label: 'LABS' },
   { id: 'biometrics', label: 'BIOMETRICS' },
   { id: 'compounds', label: 'COMPOUNDS' },
   { id: 'journal', label: 'JOURNAL' },
+  { id: 'knowledge', label: 'KNOWLEDGE' },
 ];
 
 interface DashboardProps {
@@ -28,9 +29,6 @@ export default function Dashboard({ refreshKey }: DashboardProps) {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Knowledge Graph — overnight synthesis insights */}
-      <LedgerThoughtsCard refreshKey={refreshKey} />
-
       {/* Tab bar */}
       <nav className="flex shrink-0 border-b border-zinc-800 bg-zinc-950 px-4">
         {TABS.map((tab) => (
@@ -59,6 +57,9 @@ export default function Dashboard({ refreshKey }: DashboardProps) {
         {activeTab === 'biometrics' && <BiometricsPanel biometrics={biometrics} isLoading={isLoading} onRefresh={refetch} />}
         {activeTab === 'compounds' && <CompoundsPanel regimen={regimen} isLoading={isLoading} onRefresh={refetch} />}
         {activeTab === 'journal' && <JournalPanel journals={journals} isLoading={isLoading} onRefresh={refetch} />}
+        {activeTab === 'knowledge' && (
+          <LedgerThoughtsCard refreshKey={refreshKey} />
+        )}
       </div>
     </div>
   );

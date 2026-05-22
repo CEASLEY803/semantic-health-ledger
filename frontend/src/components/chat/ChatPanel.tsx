@@ -104,21 +104,66 @@ interface ParsedResponse {
 }
 
 function parseThinkTags(text: string): ParsedResponse {
-  // Normalize variant tag names → <think>
-  const normalized = text
+  // Strip <tool_code> artifacts (Gemini 2.5 Pro echoes function calls as pseudo-code)
+  const stripped = text.replace(/<tool_code[\s\S]*?<\/tool_code>/g, '').trim();
+
+  // Normalize all variant tag names → <think>
+  const normalized = stripped
     .replace(/<thinking>/g, '<think>').replace(/<\/thinking>/g, '</think>')
     .replace(/<thought>/g,  '<think>').replace(/<\/thought>/g,  '</think>');
-  const closeIdx = normalized.indexOf('</think>');
-  if (closeIdx !== -1) {
-    const openIdx = normalized.indexOf('<think>');
-    const thinking = openIdx !== -1 ? normalized.slice(openIdx + 7, closeIdx) : '';
-    return { thinking, response: normalized.slice(closeIdx + 8).trimStart() };
+
+  // Collect ALL <think>...</think> blocks — Phase 1 streaming and Phase 2 post-tool
+  // each produce their own block; we need to handle both.
+  const thinkParts: string[] = [];
+  const responseParts: string[] = [];
+  let remaining = normalized;
+
+  while (remaining.length > 0) {
+    const openIdx = remaining.indexOf('<think>');
+    if (openIdx === -1) {
+      const tail = remaining.trim();
+      if (tail) responseParts.push(tail);
+      break;
+    }
+    // Content before <think> is response text
+    const before = remaining.slice(0, openIdx).trim();
+    if (before) responseParts.push(before);
+
+    const closeIdx = remaining.indexOf('</think>', openIdx + 7);
+    if (closeIdx === -1) {
+      // Unclosed — still streaming; rest is thinking
+      thinkParts.push(remaining.slice(openIdx + 7).trim());
+      break;
+    }
+    thinkParts.push(remaining.slice(openIdx + 7, closeIdx).trim());
+    remaining = remaining.slice(closeIdx + 8);
   }
-  const openIdx = normalized.indexOf('<think>');
-  if (openIdx !== -1) {
-    return { thinking: normalized.slice(openIdx + 7), response: '' };
+
+  return {
+    thinking: thinkParts.filter(Boolean).join('\n\n---\n\n'),
+    response: responseParts.filter(Boolean).join('\n\n'),
+  };
+}
+
+// Resolves a completed (non-streaming) model response into { text, thinkingText }.
+// When the model puts its entire reply inside <think>...</think> with nothing after,
+// we surface the thinking content as the main response rather than falling back to
+// raw markup or showing "No response received."
+function resolveCommittedMessage(raw: string): { text: string; thinkingText?: string } {
+  const { thinking, response } = parseThinkTags(raw);
+  if (response) {
+    return { text: response, thinkingText: thinking || undefined };
   }
-  return { thinking: '', response: normalized };
+  if (thinking) {
+    // Model put everything inside think tags — surface as response without reasoning section
+    return { text: thinking };
+  }
+  // Strip any residual markup for the last-resort fallback
+  const stripped = raw
+    .replace(/<tool_code[\s\S]*?<\/tool_code>/g, '')
+    .replace(/<(think|thinking|thought)[^>]*>[\s\S]*?<\/(think|thinking|thought)>/g, '')
+    .trim();
+  return { text: stripped || 'No response received.' };
 }
 
 // ── Pipeline status indicator ─────────────────────────────────────────────────
@@ -257,12 +302,12 @@ export default function ChatPanel({ onIngestSuccess, droppedPath, onPathConsumed
           if (row.role === 'user') {
             return { id: row.id, role: 'user' as const, text: row.content, timestamp: row.created_at };
           }
-          const { thinking, response } = parseThinkTags(row.content);
+          const { text, thinkingText } = resolveCommittedMessage(row.content);
           return {
             id: row.id,
             role: 'assistant' as const,
-            text: response || row.content,
-            thinkingText: thinking || undefined,
+            text,
+            thinkingText,
             timestamp: row.created_at,
           };
         });
@@ -302,12 +347,12 @@ export default function ChatPanel({ onIngestSuccess, droppedPath, onPathConsumed
 
     uploadPath(droppedPath)
       .then((response) => {
-        const { thinking, response: finalText } = parseThinkTags(response.reply ?? '');
+        const { text: msgText, thinkingText } = resolveCommittedMessage(response.reply ?? '');
         const assistantMsg: ChatMessage = {
           id: crypto.randomUUID(),
           role: 'assistant',
-          text: finalText || (response.reply ?? 'No response received.'),
-          thinkingText: thinking || undefined,
+          text: msgText,
+          thinkingText,
           committed: response.committed ?? null,
           timestamp: new Date().toISOString(),
         };
@@ -335,12 +380,12 @@ export default function ChatPanel({ onIngestSuccess, droppedPath, onPathConsumed
 
     uploadFile(droppedFile)
       .then((response) => {
-        const { thinking, response: finalText } = parseThinkTags(response.reply ?? '');
+        const { text: msgText, thinkingText } = resolveCommittedMessage(response.reply ?? '');
         const assistantMsg: ChatMessage = {
           id: crypto.randomUUID(),
           role: 'assistant',
-          text: finalText || (response.reply ?? 'No response received.'),
-          thinkingText: thinking || undefined,
+          text: msgText,
+          thinkingText,
           committed: response.committed ?? null,
           timestamp: new Date().toISOString(),
         };
@@ -381,12 +426,12 @@ export default function ChatPanel({ onIngestSuccess, droppedPath, onPathConsumed
 
     try {
       const response = await submit(text, loggingEnabled);
-      const { thinking, response: finalText } = parseThinkTags(response.reply ?? '');
+      const { text: msgText, thinkingText } = resolveCommittedMessage(response.reply ?? '');
       const assistantMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        text: finalText || (response.reply ?? 'No response received.'),
-        thinkingText: thinking || undefined,
+        text: msgText,
+        thinkingText,
         committed: response.committed ?? null,
         timestamp: new Date().toISOString(),
       };
@@ -410,12 +455,12 @@ export default function ChatPanel({ onIngestSuccess, droppedPath, onPathConsumed
     setMessages((prev) => [...prev, userMsg]);
     try {
       const response = await runCheckIn({ days: checkInDays, focus: checkInFocus.trim() || undefined });
-      const { thinking, response: finalText } = parseThinkTags(response.reply ?? '');
+      const { text: msgText, thinkingText } = resolveCommittedMessage(response.reply ?? '');
       const assistantMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'assistant',
-        text: finalText || (response.reply ?? 'No response received.'),
-        thinkingText: thinking || undefined,
+        text: msgText,
+        thinkingText,
         committed: null,
         timestamp: new Date().toISOString(),
       };

@@ -82,10 +82,15 @@ export default function LedgerThoughtsCard({ refreshKey }: LedgerThoughtsCardPro
     return () => { cancelled = true; };
   }, [refreshKey]);
 
-  if (!briefing?.ready || briefing.nodes.length === 0) return null;
+  if (!briefing?.ready || briefing.nodes.length === 0) return (
+    <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
+      <p className="font-mono text-[11px] tracking-widest text-zinc-600 uppercase">No synthesis available</p>
+      <p className="font-mono text-[10px] text-zinc-700">Knowledge graph updates overnight after sufficient data is logged.</p>
+    </div>
+  );
 
   return (
-    <div className="shrink-0 border-b border-zinc-800 bg-zinc-950 px-4 pb-4 pt-3">
+    <div>
       {/* Header */}
       <div className="mb-3 flex items-center gap-3">
         <div className="h-px flex-1 bg-zinc-800" />
