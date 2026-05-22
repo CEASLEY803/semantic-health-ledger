@@ -53,3 +53,8 @@ openclaw_workspace/
 frontend/node_modules/
 frontend/.next/
 frontend/.env.local
+frontend/next-env.d.ts
+frontend/tsconfig.tsbuildinfo
+
+# Debug / scratch files
+debug_trace.txt

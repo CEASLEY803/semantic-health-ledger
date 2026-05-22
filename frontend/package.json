@@ -10,13 +10,19 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@tauri-apps/plugin-autostart": "^2.5.1",
+    "@tremor/react": "^3.18.7",
     "next": "15.3.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "recharts": "^3.8.1"
+    "react-is": "^19.2.6",
+    "react-markdown": "^10.1.0",
+    "recharts": "^3.8.1",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@tauri-apps/cli": "^2.11.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
